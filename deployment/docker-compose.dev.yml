@@ -1,0 +1,50 @@
+# Development Docker Compose for local development
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: toff-postgres-dev
+    environment:
+      POSTGRES_DB: toff_dev
+      POSTGRES_USER: toff_user
+      POSTGRES_PASSWORD: toff_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: toff-redis-dev
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.dev
+    container_name: toff-backend-dev
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://toff_user:toff_password@postgres:5432/toff_dev
+      JWT_ACCESS_SECRET: dev-access-secret-change-in-production
+      JWT_REFRESH_SECRET: dev-refresh-secret-change-in-production
+      CORS_ORIGIN: http://localhost:3000
+      PORT: 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - ../backend:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    command: npm run dev
+
+volumes:
+  postgres_data:

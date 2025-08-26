@@ -1,0 +1,196 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  username    String   @unique
+  passwordHash String  @map("password_hash")
+  displayName String   @map("display_name")
+  avatarUrl   String?  @map("avatar_url")
+  isOnline    Boolean  @default(false) @map("is_online")
+  lastSeen    DateTime @default(now()) @map("last_seen")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Friendships where this user is the requester
+  friendshipRequests Friendship[] @relation("FriendshipRequester")
+  
+  // Friendships where this user is the addressee
+  friendshipResponses Friendship[] @relation("FriendshipAddressee")
+  
+  // Conversations where this user is participant one
+  conversationsAsOne Conversation[] @relation("ConversationParticipantOne")
+  
+  // Conversations where this user is participant two
+  conversationsAsTwo Conversation[] @relation("ConversationParticipantTwo")
+  
+  // Messages sent by this user
+  sentMessages Message[]
+  
+  // User activities
+  activities UserActivity[]
+  
+  // Read receipts
+  readReceipts MessageReadReceipt[]
+  
+  // Refresh tokens
+  refreshTokens RefreshToken[]
+  
+  // Invite codes created by this user
+  createdInviteCodes InviteCode[] @relation("InviteCodeCreator")
+  
+  // Invite codes used by this user
+  usedInviteCodes InviteCode[] @relation("InviteCodeUser")
+
+  @@map("users")
+}
+
+model Friendship {
+  id          String           @id @default(uuid())
+  requesterId String           @map("requester_id")
+  addresseeId String           @map("addressee_id")
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  requester User @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@map("friendships")
+}
+
+model Conversation {
+  id             String    @id @default(uuid())
+  participantOne String    @map("participant_one")
+  participantTwo String    @map("participant_two")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  lastMessageAt  DateTime? @map("last_message_at")
+
+  participantOneUser User @relation("ConversationParticipantOne", fields: [participantOne], references: [id], onDelete: Cascade)
+  participantTwoUser User @relation("ConversationParticipantTwo", fields: [participantTwo], references: [id], onDelete: Cascade)
+
+  messages Message[]
+  activities UserActivity[]
+
+  @@unique([participantOne, participantTwo])
+  @@map("conversations")
+}
+
+model Message {
+  id             String      @id @default(uuid())
+  conversationId String      @map("conversation_id")
+  senderId       String      @map("sender_id")
+  content        String?
+  messageType    MessageType @map("message_type")
+  fileUrl        String?     @map("file_url")
+  fileName       String?     @map("file_name")
+  fileSize       Int?        @map("file_size")
+  fileMimeType   String?     @map("file_mime_type")
+  isEdited       Boolean     @default(false) @map("is_edited")
+  isRead         Boolean     @default(false) @map("is_read")
+  deliveredAt    DateTime?   @map("delivered_at")
+  readAt         DateTime?   @map("read_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  readReceipts MessageReadReceipt[]
+
+  @@map("messages")
+}
+
+model UserActivity {
+  id             String       @id @default(uuid())
+  userId         String       @map("user_id")
+  conversationId String?      @map("conversation_id")
+  activityType   ActivityType @map("activity_type")
+  lastActivity   DateTime     @default(now()) @map("last_activity")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conversationId, activityType])
+  @@map("user_activities")
+}
+
+model MessageReadReceipt {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  readAt    DateTime @default(now()) @map("read_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@map("message_read_receipts")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model InviteCode {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  createdBy String   @map("created_by")
+  expiresAt DateTime @map("expires_at")
+  isUsed    Boolean  @default(false) @map("is_used")
+  usedBy    String?  @map("used_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  creator User  @relation("InviteCodeCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  user    User? @relation("InviteCodeUser", fields: [usedBy], references: [id], onDelete: SetNull)
+
+  @@map("invite_codes")
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  BLOCKED
+
+  @@map("friendship_status")
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  PDF
+  TXT
+  OTHER_FILE
+
+  @@map("message_type")
+}
+
+enum ActivityType {
+  TYPING
+  ONLINE
+  OFFLINE
+
+  @@map("activity_type")
+}
