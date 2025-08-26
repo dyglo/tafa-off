@@ -12,7 +12,7 @@ const router = express.Router();
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
 
-const fileFilter = (req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (req: express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   // Check if file type is allowed
   if (!isAllowedFileType(file.mimetype)) {
     return cb(new Error('File type not allowed'));
@@ -36,7 +36,7 @@ router.post('/',
   upload.single('file'),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const userId = req.user!.userId;
-    const file = req.file;
+  const file = req.file as Express.Multer.File;
 
     if (!file) {
       return res.status(400).json({
@@ -100,7 +100,7 @@ router.post('/multiple',
   upload.array('files', 5), // Max 5 files
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const userId = req.user!.userId;
-    const files = req.files as Express.Multer.File[];
+  const files = req.files as Express.Multer.File[];
 
     if (!files || files.length === 0) {
       return res.status(400).json({
